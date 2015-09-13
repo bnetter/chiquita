@@ -1,0 +1,28 @@
+{
+  "name": "chiquita",
+  "version": "1.0.0",
+  "description": "ChiquitaJS is a team tracker",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bnetter/chiquita.git"
+  },
+  "author": "Benjamin Netter <benjamin.netter@gmail.com> (http://twitter.com/benjaminnetter)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bnetter/chiquita/issues"
+  },
+  "homepage": "https://github.com/bnetter/chiquita#readme",
+  "dependencies": {
+    "async": "^1.4.2",
+    "email-templates": "^2.0.1",
+    "github": "^0.2.4",
+    "jade": "^1.11.0",
+    "lodash": "^3.10.1",
+    "nodemailer": "^1.4.0",
+    "stylus": "^0.52.4"
+  }
+}
