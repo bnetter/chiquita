@@ -38,16 +38,31 @@ chiquita.tasks = {
   pr: []
 };
 
-chiquita.task = function(type, action) {
+/**
+ * Add a new task
+ */
+
+chiquita.task = function(type, task) {
   if (!_.contains(['issue', 'pull request'], type)) {
     throw new Error('Unrecognized task type `' + type + '` (can either be `issue` or `pull request`)');
   }
   if (type === 'pull request') {
     type = 'pr';
   }
+  if (_.isFunction(task)) {
+    task = {
+      callback: task
+    };
+  }
 
-  return chiquita.tasks[type].push(action);
+  return chiquita.tasks[type].push(task);
 }
+
+/**
+ * Fetch all opened issues and pull requests
+ * Run all the tasks on them
+ * Send the reports to assignees
+ */
 
 chiquita.run = function() {
   var output = {};
@@ -57,50 +72,62 @@ chiquita.run = function() {
     token: this.options.credentials.github
   });
 
-  async.each(this.options.repositories, function(repository, callback) {
-    return async.waterfall([
-      function(callback) {
-        return github.search.issues({
-          q: 'repo:' + repository + ' is:open'
-        }, callback);
-      },
-      function(issues, callback) {
-        var items = issues.items;
-
-        _.forEach(items, function (issue) {
-          issue.errors = chiquita._runOnIssue(issue);
-
-          if (issue.errors.length) {
-            var assignee = _.get(issue, 'assignee.login');
-
-            if (_.isUndefined(output[assignee])) {
-              output[assignee] = [];
-            }
-
-            output[assignee].push(issue);
-          }
-        });
-
-        return callback();
-      }
-    ], callback);
-  }, function(err) {
+  async.map(this.options.repositories, chiquita._runOnRepository, function(err, results) {
     if (err) {
-      throw new Error(err);
+      return console.log(err);
     }
 
-    return chiquita._sendReport(output);
+    _.forEach(results, function(error) {
+      if (!_.isUndefined(output[error.assignee])) {
+        output[error.assignee] = [];
+      }
+
+      output[error.assignee][error.issue.id]
+    });
+
+    console.log(output);
+
+    // return chiquita._sendReport(output);
   });
 }
 
-chiquita._runOnIssue = function(issue) {
-  var type = (_.isUndefined(issue.pull_request)) ? ('issue') : ('pr');
+chiquita._runOnRepository = function(repository, callback) {
+  var output = [];
 
-  var errors = _.map(chiquita.tasks[type], function(func) {
-    return func(issue);
+  return async.waterfall([
+    function(callback) {
+      return github.search.issues({
+        q: 'repo:' + repository + ' is:open'
+      }, callback);
+    },
+    function(issues, callback) {
+      var items = issues.items;
+
+      _.forEach(items, function (issue) {
+        var type = (_.isUndefined(issue.pull_request)) ? ('issue') : ('pr');
+
+        return _.forEach(chiquita.tasks[type], function(task) {
+          var message = task.callback(issue);
+
+          if (message) {
+            var assignee = _.get(task, 'assignee', _.get(issue, 'assignee.login'));
+
+            if (!_.isUndefined(assignee)) {
+              output.push({
+                assignee: assignee,
+                message: message,
+                issue: issue
+              });
+            }
+          }
+        });
+      });
+
+      return callback();
+    }
+  ], function(err) {
+    return callback(err, output);
   });
-
-  return _.reject(errors, _.isEmpty);
 }
 
 chiquita._sendReport = function(output) {
@@ -125,7 +152,8 @@ chiquita._sendReport = function(output) {
 
           return callback();
         }
-        return chiquita._send(email, { issues: output[user] });
+        // return chiquita._send(email, { issues: output[user] });
+        return chiquita._send('benjamin.netter@gmail.com', { issues: output[user] });
       }
     ], callback);
   }, function (err) {
